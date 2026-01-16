@@ -1,0 +1,54 @@
+{
+  "name": "upstash-lua",
+  "version": "0.1.0",
+  "description": "Type-safe Lua scripts for Upstash Redis with StandardSchemaV1 validation",
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target node && bun run build:types",
+    "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
+    "test": "bun test",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": [
+    "upstash",
+    "redis",
+    "lua",
+    "scripts",
+    "typescript",
+    "zod",
+    "validation",
+    "standard-schema"
+  ],
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "zod": "^4.3.5"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@standard-schema/spec": "^1.1.0"
+  }
+}
