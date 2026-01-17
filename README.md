@@ -1,4 +1,4 @@
-# upstash-lua
+![Hero](https://raw.githubusercontent.com/strandhvilliam/upstash-lua/main/assets/upstash-lua-hero.jpg)
 
 Type-safe Lua scripts for Upstash Redis with StandardSchemaV1 validation.
 
