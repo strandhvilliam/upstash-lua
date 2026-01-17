@@ -2,6 +2,8 @@
 
 Type-safe Lua scripts for Upstash Redis with StandardSchemaV1 validation.
 
+> **Disclaimer:** This library is not affiliated with or officially supported by Upstash. The name "upstash-lua" reflects that it's designed to work with Upstash Redis and provides utilities for writing Lua scripts.
+
 ## Features
 
 - **Full TypeScript inference** for keys, args, and return values
