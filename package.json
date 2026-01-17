@@ -14,6 +14,7 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "homepage": "https://github.com/strandhvilliam/upstash-lua",
   "files": [
     "dist",
     "README.md"
