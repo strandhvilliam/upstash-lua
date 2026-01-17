@@ -64,13 +64,11 @@ function getClientCache(redis: RedisLike): Map<string, Promise<void>> {
 export async function ensureLoaded(redis: RedisLike, sha: string, script: string): Promise<void> {
   const cache = getClientCache(redis)
 
-  // Check if already loading or loaded
   const existing = cache.get(sha)
   if (existing) {
     return existing
   }
 
-  // Create a new load promise
   const loadPromise = (async () => {
     await redis.scriptLoad(script)
   })()
@@ -80,7 +78,6 @@ export async function ensureLoaded(redis: RedisLike, sha: string, script: string
   try {
     await loadPromise
   } catch (error) {
-    // Remove from cache on failure so it can be retried
     cache.delete(sha)
     throw error
   }
@@ -137,15 +134,12 @@ export async function evalWithCache(
   const { script, sha, keys, args } = options
 
   try {
-    // Try EVALSHA first - most efficient if script is cached
     return await redis.evalsha(sha, keys, args)
   } catch (error) {
-    // If not a NOSCRIPT error, rethrow
     if (!isNoScriptError(error)) {
       throw error
     }
 
-    // Load the script and retry
     await ensureLoaded(redis, sha, script)
     return await redis.evalsha(sha, keys, args)
   }

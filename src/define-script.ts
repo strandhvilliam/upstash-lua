@@ -10,6 +10,13 @@ import type {
 import { parseStandard } from "./standard-schema.ts"
 import { evalWithCache } from "./eval-with-cache.ts"
 import { sha1Hex } from "./sha1.ts"
+import {
+  type CompiledLua,
+  type TokenProxy,
+  compileLua,
+  createTokenProxy,
+  isCompiledLua,
+} from "./lua-template.ts"
 
 /**
  * Represents a defined Lua script with type-safe execution methods.
@@ -94,8 +101,7 @@ export interface Script<K extends StringSchemaRecord, A extends StringSchemaReco
    * @param redis - The Redis client to execute on
    * @param input - The keys and args (omit if both are empty)
    * @returns Promise resolving to the validated and transformed return value
-   * @throws {ScriptInputError} When input validation fails
-   * @throws {ScriptReturnError} When return validation fails
+   * @throws {Error} When validation fails
    *
    * @example
    * ```ts
@@ -109,6 +115,31 @@ export interface Script<K extends StringSchemaRecord, A extends StringSchemaReco
    */
   run(redis: RedisLike, ...input: ScriptCallArgs<K, A>): Promise<R>
 }
+
+/**
+ * Function type for type-safe Lua script definition.
+ *
+ * Receives typed `KEYS` and `ARGV` proxy objects and returns a `CompiledLua`
+ * template created with the `lua` tagged template function.
+ *
+ * @typeParam K - The keys schema record
+ * @typeParam A - The args schema record
+ *
+ * @example
+ * ```ts
+ * lua: ({ KEYS, ARGV }) => lua`
+ *   local key = ${KEYS.userKey}
+ *   local limit = tonumber(${ARGV.limit})
+ *   return redis.call("GET", key)
+ * `
+ * ```
+ *
+ * @since 0.2.0
+ */
+export type LuaFunction<K extends StringSchemaRecord, A extends StringSchemaRecord> = (ctx: {
+  KEYS: TokenProxy<K>
+  ARGV: TokenProxy<A>
+}) => CompiledLua
 
 /**
  * Base definition for a Lua script.
@@ -128,10 +159,28 @@ export interface DefineScriptBase<K extends StringSchemaRecord, A extends String
   /**
    * The Lua script source code.
    *
-   * Keys are available as KEYS[1], KEYS[2], etc.
-   * Args are available as ARGV[1], ARGV[2], etc.
+   * Can be either:
+   * - A plain string (for raw `.lua` files or manual scripts)
+   * - A function receiving typed `KEYS`/`ARGV` proxies and returning a `lua` template
+   *
+   * When using the function form, you get:
+   * - Autocomplete for `KEYS.*` and `ARGV.*`
+   * - Compile-time errors for invalid key/arg references
+   * - Automatic compilation of `${KEYS.name}` to `KEYS[n]`
+   *
+   * @example
+   * ```ts
+   * // String form (no type safety for KEYS/ARGV):
+   * lua: `return redis.call("GET", KEYS[1])`
+   *
+   * // Function form (type-safe):
+   * lua: ({ KEYS, ARGV }) => lua`
+   *   local key = ${KEYS.userKey}
+   *   return redis.call("GET", key)
+   * `
+   * ```
    */
-  lua: string
+  lua: string | LuaFunction<K, A>
 
   /**
    * Record of key schemas.
@@ -178,7 +227,6 @@ async function validateAndCollect<K extends StringSchemaRecord, A extends String
   const keysArray: string[] = []
   const argsArray: string[] = []
 
-  // Validate and collect keys
   for (const keyName of keyNames) {
     const schema = keySchemas[keyName]
     const value = input.keys?.[keyName]
@@ -189,7 +237,6 @@ async function validateAndCollect<K extends StringSchemaRecord, A extends String
       type: "input",
     })
 
-    // Runtime check that output is a string
     if (typeof validated !== "string") {
       throw new TypeError(
         `[upstash-lua] Key "${keyName}" schema must output a string, got ${typeof validated}`
@@ -199,7 +246,6 @@ async function validateAndCollect<K extends StringSchemaRecord, A extends String
     keysArray.push(validated)
   }
 
-  // Validate and collect args
   for (const argName of argNames) {
     const schema = argSchemas[argName]
     const value = input.args?.[argName]
@@ -210,7 +256,6 @@ async function validateAndCollect<K extends StringSchemaRecord, A extends String
       type: "input",
     })
 
-    // Runtime check that output is a string
     if (typeof validated !== "string") {
       throw new TypeError(
         `[upstash-lua] Arg "${argName}" schema must output a string, got ${typeof validated}`
@@ -221,6 +266,39 @@ async function validateAndCollect<K extends StringSchemaRecord, A extends String
   }
 
   return { keys: keysArray, args: argsArray }
+}
+
+/**
+ * Resolves the lua property to a string.
+ *
+ * If `lua` is a string, returns it as-is.
+ * If `lua` is a function, creates typed proxies, calls the function,
+ * and compiles the result to a Lua string.
+ *
+ * @internal
+ */
+function resolveLua(
+  luaInput: string | ((ctx: { KEYS: TokenProxy<StringSchemaRecord>; ARGV: TokenProxy<StringSchemaRecord> }) => CompiledLua),
+  keyNames: readonly string[],
+  argNames: readonly string[]
+): string {
+  if (typeof luaInput === "string") {
+    return luaInput
+  }
+
+  const KEYS = createTokenProxy<StringSchemaRecord>("key")
+  const ARGV = createTokenProxy<StringSchemaRecord>("arg")
+
+  const compiled = luaInput({ KEYS, ARGV })
+
+  if (!isCompiledLua(compiled)) {
+    throw new TypeError(
+      `[upstash-lua] lua function must return a lua\`...\` template. ` +
+        `Got ${typeof compiled}. Did you forget to use the lua tagged template?`
+    )
+  }
+
+  return compileLua(compiled, keyNames, argNames)
 }
 
 /**
@@ -303,18 +381,18 @@ export function defineScript<
  */
 export function defineScript(def: {
   name: string
-  lua: string
+  lua: string | ((ctx: { KEYS: TokenProxy<StringSchemaRecord>; ARGV: TokenProxy<StringSchemaRecord> }) => CompiledLua)
   keys: Record<string, StandardSchemaV1<unknown, string>>
   args: Record<string, StandardSchemaV1<unknown, string>>
   returns?: StandardSchemaV1<unknown, unknown>
 }): Script<StringSchemaRecord, StringSchemaRecord, unknown> {
-  const { name, lua, keys: keySchemas, args: argSchemas, returns } = def
+  const { name, lua: luaInput, keys: keySchemas, args: argSchemas, returns } = def
 
-  // Extract key and arg names in insertion order
-  const keyNames = Object.keys(keySchemas) as string[]
-  const argNames = Object.keys(argSchemas) as string[]
+  const keyNames = Object.keys(keySchemas)
+  const argNames = Object.keys(argSchemas)
 
-  // Lazy SHA1 computation (cached after first run)
+  const lua = resolveLua(luaInput, keyNames, argNames)
+
   let cachedSha: string | undefined
 
   async function getSha(): Promise<string> {
@@ -324,7 +402,6 @@ export function defineScript(def: {
     return cachedSha
   }
 
-  // Core execution logic
   async function execute(
     redis: RedisLike,
     input: ScriptInput<StringSchemaRecord, StringSchemaRecord>
@@ -369,12 +446,10 @@ export function defineScript(def: {
       const input = inputArgs[0] ?? {}
       const raw = await execute(redis, input)
 
-      // If no returns schema, return raw
       if (!returns) {
         return raw
       }
 
-      // Validate and transform return value
       return parseStandard(returns, raw, {
         scriptName: name,
         path: "return",

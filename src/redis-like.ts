@@ -7,8 +7,6 @@
  *
  * **Compatibility:**
  * - Upstash Redis (`@upstash/redis`) - Fully compatible
- * - ioredis - Compatible with minor method name differences
- * - node-redis - Compatible with adapter
  *
  * @example
  * ```ts

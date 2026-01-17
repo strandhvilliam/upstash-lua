@@ -1,6 +1,19 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec"
-import { ScriptInputError, ScriptReturnError } from "./errors.ts"
-import type { ValidationIssue } from "./errors.ts"
+import { VERSION } from "./version.ts"
+
+
+/**
+ * Represents a validation issue from a StandardSchemaV1 schema.
+ * This is a simplified representation that works across different schema libraries.
+ *
+ * @since 0.1.0
+ */
+export interface ValidationIssue {
+  /** Human-readable error message */
+  readonly message: string
+  /** Path to the invalid value within the input */
+  readonly path?: ReadonlyArray<PropertyKey>
+}
 
 /**
  * Result of a successful validation.
@@ -107,8 +120,7 @@ export interface ParseContext {
  * @param value - The value to validate
  * @param context - Context for error messages
  * @returns The validated and potentially transformed value
- * @throws {ScriptInputError} When input validation fails
- * @throws {ScriptReturnError} When return validation fails
+ * @throws {Error} When validation fails
  *
  * @example
  * ```ts
@@ -139,9 +151,15 @@ export async function parseStandard<I, O>(
 
   if (!result.ok) {
     if (context.type === "input") {
-      throw new ScriptInputError(context.scriptName, context.path, result.issues)
+      const issueMessages = result.issues.map((i) => i.message).join(", ")
+      throw new Error(
+        `[upstash-lua@${VERSION}] Script "${context.scriptName}" input validation failed at "${context.path}": ${issueMessages}`
+      )
     } else {
-      throw new ScriptReturnError(context.scriptName, result.issues, context.raw)
+      const issueMessages = result.issues.map((i) => i.message).join(", ")
+      throw new Error(
+        `[upstash-lua@${VERSION}] Script "${context.scriptName}" return validation failed: ${issueMessages}`
+      )
     }
   }
 

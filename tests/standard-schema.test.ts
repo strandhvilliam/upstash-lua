@@ -4,7 +4,6 @@ import {
   validateStandard,
   parseStandard,
 } from "../src/standard-schema.ts"
-import { ScriptInputError, ScriptReturnError } from "../src/errors.ts"
 
 describe("validateStandard", () => {
   test("returns ok: true with validated value for valid input", async () => {
@@ -85,7 +84,7 @@ describe("parseStandard", () => {
     expect(value).toBe("42")
   })
 
-  test("throws ScriptInputError for invalid input", async () => {
+  test("throws Error for invalid input", async () => {
     const schema = z.number().positive()
 
     try {
@@ -96,19 +95,17 @@ describe("parseStandard", () => {
       })
       expect(true).toBe(false) // Should not reach here
     } catch (error) {
-      expect(error).toBeInstanceOf(ScriptInputError)
-      if (error instanceof ScriptInputError) {
-        expect(error.scriptName).toBe("rateLimit")
-        expect(error.path).toBe("args.limit")
-        expect(error.issues.length).toBeGreaterThan(0)
+      expect(error).toBeInstanceOf(Error)
+      if (error instanceof Error) {
         expect(error.message).toContain("rateLimit")
         expect(error.message).toContain("args.limit")
         expect(error.message).toContain("upstash-lua@")
+        expect(error.message).toContain("input validation failed")
       }
     }
   })
 
-  test("throws ScriptReturnError for invalid return value", async () => {
+  test("throws Error for invalid return value", async () => {
     const schema = z.number()
     const rawValue = "not a number"
 
@@ -121,13 +118,11 @@ describe("parseStandard", () => {
       })
       expect(true).toBe(false) // Should not reach here
     } catch (error) {
-      expect(error).toBeInstanceOf(ScriptReturnError)
-      if (error instanceof ScriptReturnError) {
-        expect(error.scriptName).toBe("increment")
-        expect(error.issues.length).toBeGreaterThan(0)
-        expect(error.raw).toBe(rawValue)
+      expect(error).toBeInstanceOf(Error)
+      if (error instanceof Error) {
         expect(error.message).toContain("increment")
         expect(error.message).toContain("upstash-lua@")
+        expect(error.message).toContain("return validation failed")
       }
     }
   })
@@ -142,8 +137,8 @@ describe("parseStandard", () => {
         type: "input",
       })
     } catch (error) {
-      expect(error).toBeInstanceOf(ScriptInputError)
-      if (error instanceof ScriptInputError) {
+      expect(error).toBeInstanceOf(Error)
+      if (error instanceof Error) {
         expect(error.message).toMatch(/\[upstash-lua@\d+\.\d+\.\d+\]/)
       }
     }

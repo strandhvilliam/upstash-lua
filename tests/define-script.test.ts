@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { z } from "zod"
 import { defineScript } from "../src/define-script.ts"
-import { ScriptInputError, ScriptReturnError } from "../src/errors.ts"
 import type { RedisLike } from "../src/redis-like.ts"
 
 /**
@@ -184,7 +183,7 @@ describe("script.run()", () => {
     expect(result).toBe("PONG")
   })
 
-  test("throws ScriptInputError for invalid input", async () => {
+  test("throws Error for invalid input", async () => {
     const redis = createMockRedis()
 
     const script = defineScript({
@@ -201,16 +200,16 @@ describe("script.run()", () => {
       })
       expect(true).toBe(false) // Should not reach
     } catch (error) {
-      expect(error).toBeInstanceOf(ScriptInputError)
-      if (error instanceof ScriptInputError) {
-        expect(error.scriptName).toBe("rateLimit")
-        expect(error.path).toBe("args.limit")
-        expect(error.issues.length).toBeGreaterThan(0)
+      expect(error).toBeInstanceOf(Error)
+      if (error instanceof Error) {
+        expect(error.message).toContain("rateLimit")
+        expect(error.message).toContain("args.limit")
+        expect(error.message).toContain("input validation failed")
       }
     }
   })
 
-  test("throws ScriptReturnError for invalid return", async () => {
+  test("throws Error for invalid return", async () => {
     const redis = createMockRedis({ returnValue: "not a number" })
 
     const script = defineScript({
@@ -225,10 +224,10 @@ describe("script.run()", () => {
       await script.run(redis)
       expect(true).toBe(false) // Should not reach
     } catch (error) {
-      expect(error).toBeInstanceOf(ScriptReturnError)
-      if (error instanceof ScriptReturnError) {
-        expect(error.scriptName).toBe("increment")
-        expect(error.raw).toBe("not a number")
+      expect(error).toBeInstanceOf(Error)
+      if (error instanceof Error) {
+        expect(error.message).toContain("increment")
+        expect(error.message).toContain("return validation failed")
       }
     }
   })
@@ -287,7 +286,7 @@ describe("script.runRaw()", () => {
       await script.runRaw(redis, { keys: { key: "" } }) // Invalid: empty string
       expect(true).toBe(false)
     } catch (error) {
-      expect(error).toBeInstanceOf(ScriptInputError)
+      expect(error).toBeInstanceOf(Error)
     }
   })
 })

@@ -5,6 +5,7 @@ Type-safe Lua scripts for Upstash Redis with StandardSchemaV1 validation.
 ## Features
 
 - **Full TypeScript inference** for keys, args, and return values
+- **Type-safe Lua templates** - Use `${KEYS.name}` and `${ARGV.name}` with autocomplete and compile-time errors
 - **Input validation** using StandardSchemaV1 schemas (Zod, Effect Schema, ArkType, etc.)
 - **Efficient execution** via EVALSHA with automatic NOSCRIPT fallback
 - **Universal runtime support** - Node.js 18+, Bun, Cloudflare Workers, Vercel Edge
@@ -21,7 +22,7 @@ npm install upstash-lua @upstash/redis zod
 
 ```typescript
 import { z } from "zod"
-import { defineScript } from "upstash-lua"
+import { defineScript, lua } from "upstash-lua"
 import { Redis } from "@upstash/redis"
 
 const redis = new Redis({
@@ -29,17 +30,9 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 })
 
-// Define a rate limiter script
+// Define a rate limiter script with type-safe Lua template
 const rateLimit = defineScript({
   name: "rateLimit",
-  lua: `
-    local current = redis.call("INCR", KEYS[1])
-    if current == 1 then
-      redis.call("EXPIRE", KEYS[1], ARGV[2])
-    end
-    local allowed = current <= tonumber(ARGV[1]) and 1 or 0
-    return { allowed, tonumber(ARGV[1]) - current }
-  `,
   keys: {
     key: z.string(),
   },
@@ -47,6 +40,14 @@ const rateLimit = defineScript({
     limit: z.number().int().positive().transform(String),
     windowSeconds: z.number().int().positive().transform(String),
   },
+  lua: ({ KEYS, ARGV }) => lua`
+    local current = redis.call("INCR", ${KEYS.key})
+    if current == 1 then
+      redis.call("EXPIRE", ${KEYS.key}, ${ARGV.windowSeconds})
+    end
+    local allowed = current <= tonumber(${ARGV.limit}) and 1 or 0
+    return { allowed, tonumber(${ARGV.limit}) - current }
+  `,
   returns: z.tuple([z.number(), z.number()]).transform(([allowed, rem]) => ({
     allowed: allowed === 1,
     remaining: rem,
@@ -74,12 +75,33 @@ Creates a type-safe Lua script definition.
 | Property | Type | Description |
 |----------|------|-------------|
 | `name` | `string` | Human-readable name (used in error messages) |
-| `lua` | `string` | Lua script source code |
+| `lua` | `string \| LuaFunction` | Lua script source code (string) or type-safe template function |
 | `keys` | `Record<string, Schema>` | Key schemas - order determines KEYS[1], KEYS[2], etc. |
 | `args` | `Record<string, Schema>` | Arg schemas - order determines ARGV[1], ARGV[2], etc. |
 | `returns` | `Schema` | Optional return value schema |
 
 **Important:** Key/arg order is determined by object literal insertion order. Always define using object literal syntax in the intended order.
+
+#### Lua Property: String vs Function
+
+The `lua` property can be either a plain string or a function that returns a `lua` template:
+
+**String form** (manual KEYS/ARGV indexing):
+```typescript
+lua: `return redis.call("GET", KEYS[1])`
+```
+
+**Function form** (type-safe with autocomplete):
+```typescript
+lua: ({ KEYS, ARGV }) => lua`
+  return redis.call("GET", ${KEYS.userKey})
+`
+```
+
+The function form provides:
+- ✅ Autocomplete for `KEYS.*` and `ARGV.*` properties
+- ✅ Compile-time errors for invalid key/arg references
+- ✅ Automatic compilation of `${KEYS.name}` → `KEYS[n]` and `${ARGV.name}` → `ARGV[n]`
 
 #### Returns
 
@@ -108,6 +130,35 @@ args: {
 
 ## Examples
 
+### Type-Safe Lua Template
+
+Use the `lua` tagged template function for type-safe key and argument references:
+
+```typescript
+import { defineScript, lua } from "upstash-lua"
+import { z } from "zod"
+
+const getUser = defineScript({
+  name: "getUser",
+  keys: {
+    userKey: z.string(),
+  },
+  args: {
+    field: z.string(),
+  },
+  lua: ({ KEYS, ARGV }) => lua`
+    -- TypeScript autocomplete works here!
+    local key = ${KEYS.userKey}
+    local field = ${ARGV.field}
+    return redis.call("HGET", key, field)
+  `,
+  returns: z.string().nullable(),
+})
+
+// ${KEYS.userKey} automatically becomes KEYS[1]
+// ${ARGV.field} automatically becomes ARGV[1]
+```
+
 ### Simple Script (No Keys/Args)
 
 ```typescript
@@ -121,6 +172,18 @@ const ping = defineScript({
 
 const result = await ping.run(redis)
 // result: "PONG"
+```
+
+Or with the function form:
+
+```typescript
+const ping = defineScript({
+  name: "ping",
+  keys: {},
+  args: {},
+  lua: () => lua`return redis.call("PING")`,
+  returns: z.string(),
+})
 ```
 
 ### Script Without Return Validation
@@ -142,11 +205,10 @@ const result = await getData.run(redis, { keys: { key: "user:123" } })
 
 ```typescript
 import { Schema } from "effect"
-import { defineScript } from "upstash-lua"
+import { defineScript, lua } from "upstash-lua"
 
 const incr = defineScript({
   name: "incr",
-  lua: 'return redis.call("INCRBY", KEYS[1], ARGV[1])',
   keys: {
     key: Schema.standardSchemaV1(Schema.String),
   },
@@ -157,47 +219,39 @@ const incr = defineScript({
       )
     ),
   },
+  lua: ({ KEYS, ARGV }) => lua`
+    return redis.call("INCRBY", ${KEYS.key}, ${ARGV.amount})
+  `,
   returns: Schema.standardSchemaV1(Schema.Number),
 })
 ```
 
 ## Error Handling
 
-### ScriptInputError
-
-Thrown when input validation fails:
+Errors are thrown as `Error` objects with descriptive messages when validation fails:
 
 ```typescript
 try {
   await script.run(redis, { args: { limit: -1 } })
 } catch (error) {
-  if (error instanceof ScriptInputError) {
-    console.error(error.scriptName)  // "rateLimit"
-    console.error(error.path)        // "args.limit"
-    console.error(error.issues)      // [{ message: "Number must be positive" }]
+  if (error instanceof Error) {
+    console.error(error.message)
+    // "[upstash-lua@0.2.0] Script \"rateLimit\" input validation failed at \"args.limit\": Number must be positive"
   }
 }
 ```
 
-### ScriptReturnError
-
-Thrown when return validation fails:
-
-```typescript
-try {
-  await script.run(redis, input)
-} catch (error) {
-  if (error instanceof ScriptReturnError) {
-    console.error(error.scriptName)  // "myScript"
-    console.error(error.raw)         // Raw Redis response
-    console.error(error.issues)      // Validation issues
-  }
-}
-```
+Error messages include:
+- The library version
+- The script name
+- The validation path (for input errors)
+- The validation error messages
 
 ## How It Works
 
 1. **Define** - Creates script with metadata and computed SHA1
+   - If `lua` is a function, it's called with typed `KEYS`/`ARGV` proxies
+   - The `lua` template is compiled: `${KEYS.name}` → `KEYS[n]`, `${ARGV.name}` → `ARGV[n]`
 2. **Validate** - Keys/args are validated against StandardSchemaV1 schemas
 3. **Transform** - Validated values are transformed (e.g., numbers → strings)
 4. **Execute** - Uses EVALSHA for efficiency, falls back to SCRIPT LOAD on NOSCRIPT

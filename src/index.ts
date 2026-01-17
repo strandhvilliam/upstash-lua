@@ -55,14 +55,15 @@ export { VERSION } from "./version.ts"
 
 // Main API
 export { defineScript } from "./define-script.ts"
-export type { Script, DefineScriptBase } from "./define-script.ts"
+export type { Script, DefineScriptBase, LuaFunction } from "./define-script.ts"
+
+// Lua tagged template
+export { lua } from "./lua-template.ts"
+export type { CompiledLua, LuaToken, TokenProxy } from "./lua-template.ts"
 
 // Redis interface
 export type { RedisLike } from "./redis-like.ts"
 
-// Errors
-export { ScriptInputError, ScriptReturnError } from "./errors.ts"
-export type { ValidationIssue } from "./errors.ts"
 
 // Types (for advanced users)
 export type {
