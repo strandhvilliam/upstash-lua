@@ -191,7 +191,7 @@ export interface DefineScriptBase<K extends StringSchemaRecord, A extends String
    *
    * Each schema must output a string (use `.transform(String)` if needed).
    */
-  keys: K
+  keys?: K
 
   /**
    * Record of argument schemas.
@@ -202,7 +202,7 @@ export interface DefineScriptBase<K extends StringSchemaRecord, A extends String
    *
    * Each schema must output a string (use `.transform(String)` if needed).
    */
-  args: A
+  args?: A
 }
 
 /**
@@ -382,11 +382,11 @@ export function defineScript<
 export function defineScript(def: {
   name: string
   lua: string | ((ctx: { KEYS: TokenProxy<StringSchemaRecord>; ARGV: TokenProxy<StringSchemaRecord> }) => CompiledLua)
-  keys: Record<string, StandardSchemaV1<unknown, string>>
-  args: Record<string, StandardSchemaV1<unknown, string>>
+  keys?: Record<string, StandardSchemaV1<unknown, string>>
+  args?: Record<string, StandardSchemaV1<unknown, string>>
   returns?: StandardSchemaV1<unknown, unknown>
 }): Script<StringSchemaRecord, StringSchemaRecord, unknown> {
-  const { name, lua: luaInput, keys: keySchemas, args: argSchemas, returns } = def
+  const { name, lua: luaInput, keys: keySchemas = {}, args: argSchemas = {}, returns } = def
 
   const keyNames = Object.keys(keySchemas)
   const argNames = Object.keys(argSchemas)

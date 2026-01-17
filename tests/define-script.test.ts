@@ -81,6 +81,38 @@ describe("defineScript", () => {
     expect(script.keyNames).toEqual(["third", "first", "second"])
     expect(script.argNames).toEqual(["c", "a", "b"])
   })
+
+  test("allows optional keys and args", () => {
+    const script = defineScript({
+      name: "optional",
+      lua: 'return "test"',
+    })
+
+    expect(script.keyNames).toEqual([])
+    expect(script.argNames).toEqual([])
+  })
+
+  test("allows optional args only", () => {
+    const script = defineScript({
+      name: "onlyKeys",
+      lua: "test",
+      keys: { key: z.string() },
+    })
+
+    expect(script.keyNames).toEqual(["key"])
+    expect(script.argNames).toEqual([])
+  })
+
+  test("allows optional keys only", () => {
+    const script = defineScript({
+      name: "onlyArgs",
+      lua: "test",
+      args: { arg: z.string() },
+    })
+
+    expect(script.keyNames).toEqual([])
+    expect(script.argNames).toEqual(["arg"])
+  })
 })
 
 describe("script.run()", () => {

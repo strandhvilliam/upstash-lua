@@ -165,8 +165,6 @@ const getUser = defineScript({
 const ping = defineScript({
   name: "ping",
   lua: 'return redis.call("PING")',
-  keys: {},
-  args: {},
   returns: z.string(),
 })
 
@@ -179,8 +177,6 @@ Or with the function form:
 ```typescript
 const ping = defineScript({
   name: "ping",
-  keys: {},
-  args: {},
   lua: () => lua`return redis.call("PING")`,
   returns: z.string(),
 })
@@ -193,7 +189,6 @@ const getData = defineScript({
   name: "getData",
   lua: 'return redis.call("HGETALL", KEYS[1])',
   keys: { key: z.string() },
-  args: {},
   // No returns schema - result is unknown
 })
 

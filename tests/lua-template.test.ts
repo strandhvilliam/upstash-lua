@@ -392,4 +392,43 @@ describe("Edge cases", () => {
     expect(script.lua).toContain("if true then")
     expect(script.lua).toContain("\n")
   })
+
+  test("optional keys and args (omitting the fields)", () => {
+    const script = defineScript({
+      name: "noKeysOrArgs",
+      lua: () => lua`
+        return redis.call("PING")
+      `,
+    })
+
+    expect(script.keyNames).toEqual([])
+    expect(script.argNames).toEqual([])
+    expect(script.lua).toContain("PING")
+  })
+
+  test("optional args only", () => {
+    const script = defineScript({
+      name: "onlyKeys",
+      keys: { key: z.string() },
+      lua: ({ KEYS }) => lua`
+        return redis.call("GET", ${KEYS.key})
+      `,
+    })
+
+    expect(script.keyNames).toEqual(["key"])
+    expect(script.argNames).toEqual([])
+  })
+
+  test("optional keys only", () => {
+    const script = defineScript({
+      name: "onlyArgs",
+      args: { value: z.string() },
+      lua: ({ ARGV }) => lua`
+        return ${ARGV.value}
+      `,
+    })
+
+    expect(script.keyNames).toEqual([])
+    expect(script.argNames).toEqual(["value"])
+  })
 })
