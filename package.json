@@ -1,8 +1,8 @@
 {
   "name": "upstash-lua",
-  "version": "0.1.0",
-  "description": "Type-safe Lua scripts for Upstash Redis with StandardSchemaV1 validation",
-  "author": "",
+  "version": "0.2.0",
+  "description": "Type-safe Lua scripts for Upstash with StandardSchema validation",
+  "author": "Villiam Strandh",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

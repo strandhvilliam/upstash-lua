@@ -1,9 +1,8 @@
 /**
- * A minimal interface for Redis clients that support Lua script execution.
+ * A minimal interface for Upstash Redis that support Lua script execution.
  *
- * This interface is designed to be compatible with Upstash Redis and other
- * Redis clients. The library does not directly depend on any specific
- * Redis client implementation.
+ * This interface is designed to be compatible with Upstash Redis and possibly other
+ * Redis clients. 
  *
  * **Compatibility:**
  * - Upstash Redis (`@upstash/redis`) - Fully compatible
