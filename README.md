@@ -15,9 +15,9 @@ Type-safe Lua scripts for Upstash Redis with StandardSchemaV1 validation.
 ## Installation
 
 ```bash
-bun add upstash-lua @upstash/redis zod
+bun add upstash-lua @upstash/redis
 # or
-npm install upstash-lua @upstash/redis zod
+pnpm install upstash-lua @upstash/redis
 ```
 
 ## Quick Start

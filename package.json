@@ -1,6 +1,6 @@
 {
   "name": "upstash-lua",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Type-safe Lua scripts for Upstash with StandardSchema validation",
   "author": "Villiam Strandh",
   "license": "MIT",
