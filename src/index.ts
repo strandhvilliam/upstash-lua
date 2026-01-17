@@ -64,6 +64,8 @@ export type { CompiledLua, LuaToken, TokenProxy } from "./lua-template.ts"
 // Redis interface
 export type { RedisLike } from "./redis-like.ts"
 
+// Schema helpers
+export { hashResult } from "./hash-result.ts"
 
 // Types (for advanced users)
 export type {

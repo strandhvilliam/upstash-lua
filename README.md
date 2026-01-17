@@ -196,6 +196,54 @@ const result = await getData.run(redis, { keys: { key: "user:123" } })
 // result: unknown
 ```
 
+### HGETALL with `hashResult()`
+
+Redis commands like `HGETALL` return flat arrays of alternating key-value pairs:
+`["field1", "value1", "field2", "value2"]`
+
+The `hashResult()` helper converts this to an object before validation, enabling you to use `z.object()`:
+
+```typescript
+import { z } from "zod"
+import { defineScript, hashResult } from "upstash-lua"
+
+const getUser = defineScript({
+  name: "getUser",
+  keys: { key: z.string() },
+  lua: 'return redis.call("HGETALL", KEYS[1])',
+  returns: hashResult(z.object({
+    name: z.string(),
+    email: z.string(),
+    age: z.coerce.number(),
+    is_admin: z.string().transform(v => v === "true"),
+  })),
+})
+
+const user = await getUser.run(redis, { keys: { key: "user:123" } })
+// user: { name: string, email: string, age: number, is_admin: boolean }
+```
+
+Works with all Zod object features:
+
+```typescript
+// Optional fields
+returns: hashResult(z.object({
+  name: z.string(),
+  email: z.string().optional(),
+}))
+
+// Partial objects
+returns: hashResult(z.object({
+  name: z.string(),
+  email: z.string(),
+}).partial())
+
+// Passthrough for extra fields
+returns: hashResult(z.object({
+  name: z.string(),
+}).passthrough())
+```
+
 ### Effect Schema Example
 
 ```typescript

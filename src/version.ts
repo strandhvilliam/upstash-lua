@@ -15,4 +15,4 @@
  *
  * @since 0.1.0
  */
-export const VERSION = "0.2.0" as const
+export const VERSION = "0.3.0" as const
